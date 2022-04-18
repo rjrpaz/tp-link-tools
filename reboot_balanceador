@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use Net::Telnet;
+
+my $debug = 0;
+
+#
+# Configuration file
+#
+# Variables are of type
+# key=value
+#
+# Expected keys are:
+# host: load balancer hostname
+# username: load balancer username
+# password: load balancer user password
+# password2 (optional): in case this is not provided, uses password to raise
+#   privileges in the load balancer telnet session
+#
+
+my $conffile = 'reboot_balanceador.conf';
+my %conf = ();
+
+exit(0) if (! -f $conffile);
+
+open (CONF, $conffile);
+while (<CONF>) {
+	chomp;
+	next if ($_ =~ /^#/);
+	next if ($_ =~ /^\s*$/);
+	my ($a, $v) = split/\s*=\s*/, $_;
+	print "Key: $a Value: $v\n" if ($debug);
+	$conf{$a} = $v;
+}
+close (CONF);
+
+die "No username" if ($conf{'username'} eq '');
+die "No password" if ($conf{'password'} eq '');
+die "No host" if ($conf{'host'} eq '');
+
+$conf{'password2'} = $conf{'password'} if ($conf{'password2'} eq '');
+
+my $telnet = new Net::Telnet ( Timeout=>10, Errmode=>'die');
+$telnet->open($conf{'host'});
+$telnet->waitfor('/Username:$/i');
+$telnet->print($conf{'username'});
+$telnet->waitfor('/Password:$/i');
+$telnet->print($conf{'password'});
+$telnet->waitfor('/> $/i');
+$telnet->print('enable');
+$telnet->waitfor('/Enter password: $/i');
+$telnet->print($conf{'password2'});
+$telnet->waitfor('/# $/i');
+$telnet->print('sys reboot');
+$telnet->waitfor('/:/i');
+$telnet->print('Y');
+
